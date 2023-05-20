@@ -1,47 +1,61 @@
 #version 330 core
 
-in vec4 gl_FragCord; // Fragments pixel position
-out vec4 frag_color; // Output color of the fragment
+uniform float width;
+uniform float height;
 
-#define MAX_ITER 150
+out vec4 color;
 
-int get_iterations() {
-	// normalizes down to 1 and then scales by 4 to a final range of -2.0 to 2.0
-	float real = (gl_FragCord.x / 1080.0 - 0.5) * 4.0;
-	float imag = (gl_FragCord.y / 1080.0 - 0.7) * 4.0;
+#define MAX_ITER 100
 
-	int iterations = 0;
-	float const_real = real;
-	float const_imag = imag;
+// void main() {
+//     // Calculate pixel pos in range [-1.0, 1.0]
+//     vec2 pixel_pos = gl_FragCoord.xy / vec2(width, height) * 2.0 - 1.0;
 
-	// escape sequence
-	while(iterations < MAX_ITER) {
-		float tmp_real = real;
-		real = (real * real - imag * imag) + const_real;
-		imag = (2.0 * tmp_real * imag) + const_imag;
-			
-		float dist = real * real + imag * imag;
-			
-		if (dist > 4.0)
-		break;
+//     // Calculate the complex number c based on pixel position
+//     vec2 c = pixel_pos;
 
-		++iterations;
-	}
-	return iterations;
-}
+//     // Mandelbrot iteration
+//     vec2 z = vec2(0.0, 0.0);
+//     int iteration = 0;
 
-vec4 return_color() {
-	int iter = get_iterations();
-	if (iter == MAX_ITER) {
-		gl_FragDepth = 0.0f;
-		return vec4(0.0, iterations, 0.0f, 1.0f);
-	}
-	float iterations = float(iter) / MAX_ITER;
-	return vec4(0.0f, iterations, 0.0f, 1.0f);
-}
+//     while(length(z) < 2.0 && iteration < MAX_ITER) {
+//         vec2 z_squared = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y);
+//         z = z_squared + c;
+//         iteration++;
+//     }
+
+//     // set color based on n iterations
+//     if (iteration == MAX_ITER) {
+//         color = vec4(0.0, 0.0, 0.0, 1.0); // black
+//     } else {
+//         float normalized_iteration = float(iteration) / float(MAX_ITER);
+//         color = vec4(normalized_iteration, normalized_iteration, normalized_iteration, 1.0);
+//     }
+
+// }
 
 void main() {
-	frag_color = return_color();
+    vec2 pixel_pos = gl_FragCoord.xy / vec2(width, height) * 2.0 - 1.0;
+    vec2 c = pixel_pos;
+
+    vec2 z = vec2(0.0, 0.0);
+    int iteration = 0;
+
+    while (length(z) < 2.0 && iteration < MAX_ITER) {
+        vec2 z_squared = vec2(z.x * z.x - z.y * z.y, 2.0 * z.x * z.y);
+        z = z_squared + c;
+        iteration++;
+    }
+
+    if (iteration == MAX_ITER) {
+        color = vec4(0.0, 0.0, 0.0, 1.0);
+    } else {
+        float normalized_iteration = float(iteration) / float(MAX_ITER);
+
+        float r = sin(normalized_iteration * 3.14159);
+        float g = sin(normalized_iteration * 3.14159 + 2.0944);
+        float b = sin(normalized_iteration * 3.14159 + 4.18879);
+
+        color = vec4(r, g, b, 1.0);
+    }
 }
-
-

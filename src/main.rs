@@ -1,14 +1,19 @@
 extern crate glium;
 
-use glium::Surface;
+use glium::{
+    glutin::{event::VirtualKeyCode, event_loop::ControlFlow},
+    uniform, Surface,
+};
 use num_complex;
 use std::time::{Duration, Instant};
 
-const screen_height: u32 = 1080;
-const screen_width: u32 = 1080;
+const SCREEN_HEIGHT: f32 = 1050.0;
+const SCREEN_WIDTH: f32 = 1900.0;
 
-static num_frames: u32 = 0;
-static last_time: f64 = 0.0;
+const FPS:u32 = 60;
+
+//static num_frames: u32 = 0;
+//static last_time: f64 = 0.0;
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -17,9 +22,23 @@ struct Vertex {
 glium::implement_vertex!(Vertex, position);
 
 fn main() {
+    let event_loop = glium::glutin::event_loop::EventLoop::new();
+    let wb = glium::glutin::window::WindowBuilder::new()
+        .with_inner_size(glium::glutin::dpi::LogicalSize::new(
+            SCREEN_WIDTH as u32,
+            SCREEN_HEIGHT as u32,
+        ))
+        .with_title("fractal renderer");
+    let cb = glium::glutin::ContextBuilder::new();
+    let display = glium::Display::new(wb, cb, &event_loop).unwrap();
+
     let vertices = [
+        // VBO for the quad
         Vertex {
             position: [-1.0, -1.0],
+        },
+        Vertex {
+            position: [1.0, -1.0],
         },
         Vertex {
             position: [1.0, 1.0],
@@ -27,62 +46,66 @@ fn main() {
         Vertex {
             position: [-1.0, 1.0],
         },
-        Vertex {
-            position: [1.0, -1.0],
-        },
     ];
+    let vbo = glium::VertexBuffer::new(&display, &vertices).unwrap();
 
-    let indices = [0, 1, 2, 0, 3, 1];
-
-    let mut events_loop = glium::glutin::event_loop::EventLoop::new();
-    let wb = glium::glutin::window::WindowBuilder::new()
-        .with_inner_size(glium::glutin::dpi::LogicalSize::new(
-            screen_width,
-            screen_height,
-        ))
-        .with_title("fractal renderer");
-    let cb = glium::glutin::ContextBuilder::new();
-    let display = glium::Display::new(wb, cb, &events_loop).unwrap();
-
-    /*===Shaders and buffers===*/
-    let vbo = glium::VertexBuffer::new(&display, &vertices);
-    let ibo =
-        glium::IndexBuffer::<u32>::new(&display, glium::index::PrimitiveType::TrianglesList, &indices);
+    /*===Shaders===*/
 
     let vertex_shader_src = include_str!("shaders.vert");
     let vertex_frag_src = include_str!("frag.frag");
-    let shader_program = glium::Program::from_source(
-        &display, 
-        &vertex_shader_src, 
-        vertex_frag_src, 
-        None
-    ).unwrap();
 
-    events_loop.run(move |event, _, control_flow| {
-        use glium::glutin;
+    let shader_program =
+        match glium::Program::from_source(&display, vertex_shader_src, vertex_frag_src, None) {
+            Ok(program) => program,
+            Err(err) => panic!("Shader compilation error: {}", err),
+        };
 
-        let next_frame_time =
-            std::time::Instant::now() + std::time::Duration::from_nanos(16_666_667);
-        *control_flow = glium::glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
-
+    loop {
+        // draw quad
         let mut target = display.draw();
         target.clear_color(0.0, 0.0, 0.0, 1.0);
-        target.draw(&vbo, &ibo, &shader_program, &glium::uniforms::EmptyUniforms, &Default::default());
 
-        match event {
-            glutin::event::Event::WindowEvent { event, .. } => match event {
-                glutin::event::WindowEvent::CloseRequested => {
-                    *control_flow = glutin::event_loop::ControlFlow::Exit;
-                    return;
-                }
-                _ => return,
-            },
-            glutin::event::Event::NewEvents(cause) => match cause {
-                glutin::event::StartCause::ResumeTimeReached { .. } => (),
-                glutin::event::StartCause::Init => (),
-                _ => return,
-            },
-            _ => return,
-        }
-    });
+        event_loop.run(move |ev, _, control_flow| {
+            let next_frame_time =
+                std::time::Instant::now() + std::time::Duration::from_nanos(16_666_667);
+            *control_flow = glium::glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
+
+            let window_size = display.gl_window().window().inner_size();
+
+            let viewport = glium::Rect {
+                left: 0,
+                bottom: 0,
+                width: window_size.width,
+                height: window_size.height,
+            };
+
+            let mut target = display.draw();
+
+            target.clear_color(0.0, 0.0, 0.0, 1.0);
+
+            target.draw(
+                    &vbo,
+                    &glium::index::NoIndices(glium::index::PrimitiveType::TriangleFan),
+                    &shader_program,
+                    &uniform! {
+                        width: SCREEN_WIDTH,
+                        height: SCREEN_HEIGHT,
+                    },
+                    &Default::default(),
+                )
+                .unwrap();
+
+            target.finish().unwrap();
+            match ev {
+                glium::glutin::event::Event::WindowEvent { event, .. } => match event {
+                    glium::glutin::event::WindowEvent::CloseRequested => {
+                        *control_flow = glium::glutin::event_loop::ControlFlow::Exit;
+                        return;
+                    }
+                    _ => return,
+                },
+                _ => (),
+            }
+        });
+    }
 }
